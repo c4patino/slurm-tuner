@@ -70,6 +70,10 @@ def create_objective(
             logger.error('Error submitting SLURM job')
             raise
 
+        while not os.path.isfile(results_path):
+            print(f"Waiting for {results_path} to be created...")
+            time.sleep(5)
+
         while True:
             df = pd.read_csv(results_path)
 
