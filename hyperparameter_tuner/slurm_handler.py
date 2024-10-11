@@ -4,6 +4,7 @@ from optuna.trial import Trial
 import logging
 
 import time
+import os
 import subprocess
 import pandas as pd
 
