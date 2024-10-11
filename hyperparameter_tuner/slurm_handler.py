@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Tuple, Callable
-from optune.trial import Trial
+from optuna.trial import Trial
 import logging
 
 import time
