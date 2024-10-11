@@ -10,9 +10,7 @@ import pandas as pd
 
 from hyperparameter_tuner.loss import Loss
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger('main')
 
 def create_objective(
     slurm_script: str,
@@ -65,10 +63,10 @@ def create_objective(
 
         try:
             subprocess.run(command, shell=True, check=True)
-            logger.info('SLURM job submitted with trial ID: {trial_id}')
-            logger.info('Paramters: {trial_params}')
+            logger.info(f'SLURM job submitted with trial ID: {trial_id}')
+            logger.info(f'Paramters: {trial_params}')
         except subprocess.CalledProcessError:
-            logger.error('Error submitting SLURM job')
+            logger.error(f'Error submitting SLURM job')
             raise
 
         while not os.path.isfile(results_path):
