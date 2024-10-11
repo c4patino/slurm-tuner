@@ -71,7 +71,6 @@ def create_objective(
             raise
 
         while not os.path.isfile(results_path):
-            print(f"Waiting for {results_path} to be created...")
             time.sleep(5)
 
         while True:
