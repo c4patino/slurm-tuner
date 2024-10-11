@@ -28,13 +28,13 @@ def create_objective(
         slurm_script: str - Path to the SLURM script to execute.
         results_path: str - Path to the CSV file where results will be logged.
         loss: Loss - An instance of a Loss class that implements a `calculate` method.
-        trial_param_types: Dict[str, Tuple[str, Tuple, Dict]]: Dictionary mapping parameter names to their types
-            and arguments. Each entry is structured as:
-            - key str: The name of the parameter.
-            - value: Tuple[str, Tuple, Dict]
-                - str - The parameter type ('int', 'float', or 'categorical').
-                - Tuple - Positional arguments for the parameter's sampling method.
-                - Dict - Keyword arguments for the parameter's sampling method.
+        trial_param_types: Dict[str, Tuple[str, Tuple, Dict]]: Dictionary mapping parameter names to their types and arguments.
+            Each entry is structured as:
+                - key str: The name of the parameter.
+                - value: Tuple[str, Tuple, Dict[str, Any]]
+                    - str - The parameter type ('int', 'float', or 'categorical').
+                    - Tuple - Positional arguments for the parameter's sampling method.
+                    - Dict[str, Any] - Keyword arguments for the parameter's sampling method.
     """
 
     def objective(trial: Trial) -> float:
