@@ -5,12 +5,15 @@ import logging
 
 import time
 import os
+import re
 import subprocess
 import pandas as pd
+import optuna
 
 from hyperparameter_tuner.loss import Loss
 
 logger = logging.getLogger('main')
+
 
 def create_objective(
     slurm_script: str,
@@ -60,27 +63,56 @@ def create_objective(
                 raise
 
         command = f'sbatch {slurm_script} {results_path} {trial_id} {" ".join(str(v) for v in trial_params.values())}'
+        regex = r'Submitted batch job (\d+)\n'
 
         try:
-            subprocess.run(command, shell=True, check=True)
-            logger.info(f'SLURM job submitted with trial ID: {trial_id}')
+            output = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+            match = re.search(regex, output.stdout)
+            job_id = int(match.group(1))
+
+            logger.info(f'SLURM job {job_id} submitted with trial ID: {trial_id}')
             logger.info(f'Paramters: {trial_params}')
         except subprocess.CalledProcessError:
-            logger.error(f'Error submitting SLURM job')
+            logger.error('Error submitting SLURM job')
             raise
 
         while not os.path.isfile(results_path):
             time.sleep(5)
 
+        current_step = 0
         while True:
             df = pd.read_csv(results_path)
+            trial_data = df[df['trial'] == trial_id]
 
-            matching_row = df.loc[df['trial'] == trial_id]
-            if matching_row.empty:
+            step_data = trial_data[trial_data['step'] == current_step]
+            termination_data = trial_data[trial_data['step'] == -1]
+
+            # The run has neither terminated nor reached the next step, so continue waiting
+            if step_data.empty and termination_data.empty:
                 time.sleep(5)
                 continue
 
-            row_data = matching_row.iloc[0]
-            return loss.calculate(row_data)
+            # We have reached the last step and should return the objective value
+            if not termination_data.empty:
+                row_data = termination_data.iloc[0]
+                return loss(row_data, trial.params)
+
+            # The next step has returned, determine if we should prune
+            if not step_data.empty:
+                row_data = step_data.iloc[0]
+                intermediate_value = loss(row_data, trial.params)
+
+                trial.report(intermediate_value, current_step)
+                if trial.should_prune():
+                    cancel_command = f'scancel {job_id}'
+                    try:
+                        subprocess.run(cancel_command, shell=True, check=True)
+                        logger.info(f'SLURM job {job_id} cancelled due to pruning')
+                        raise optuna.TrialPruned()
+                    except subprocess.CalledProcessError:
+                        logger.error('Error cancelling SLURM job')
+                        raise
+
+                current_step += 1
 
     return objective
