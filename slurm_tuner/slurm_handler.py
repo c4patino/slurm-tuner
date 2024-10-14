@@ -1,3 +1,4 @@
+"""SLURM job submission and result handling for Optuna optimization."""
 from __future__ import annotations
 from typing import Dict, Tuple, Callable
 from optuna.trial import Trial
@@ -10,9 +11,9 @@ import subprocess
 import pandas as pd
 import optuna
 
-from hyperparameter_tuner.loss import Loss
+from slurm_tuner.loss import Loss
 
-logger = logging.getLogger('main')
+slurm_logger = logging.getLogger('slurm_tuner')
 
 
 def create_objective(
@@ -20,6 +21,8 @@ def create_objective(
     results_path: str,
     loss: Loss,
     trial_param_types: Dict[str, Tuple[str, Tuple, Dict]],
+    return_average_on_prune: bool = False,
+    log_trial_id_with_intermediate: bool = False,
 ) -> Callable[[Trial], float]:
     """
     Create an objective function for Optuna to optimize, which submits SLURM jobs and waits for results.
@@ -35,6 +38,8 @@ def create_objective(
                     - str - The parameter type ('int', 'float', or 'categorical').
                     - Tuple - Positional arguments for the parameter's sampling method.
                     - Dict[str, Any] - Keyword arguments for the parameter's sampling method.
+        return_average_on_prune: bool - Whether to return the average loss of the all intermediate steps when a trial is pruned.
+        log_trial_id_with_intermediate: bool - Whether to return the trial ID with the intermediate value instead of current step.
     """
 
     def objective(trial: Trial) -> float:
@@ -59,7 +64,7 @@ def create_objective(
             if arg_type in param_methods:
                 trial_params[param_name] = param_methods[arg_type](param_name, *args, **kwargs)
             else:
-                logger.error(f'Invalid parameter type: {arg_type}')
+                slurm_logger.error(f'Invalid parameter type: {arg_type}')
                 raise
 
         command = f'sbatch {slurm_script} {results_path} {trial_id} {" ".join(str(v) for v in trial_params.values())}'
@@ -70,10 +75,10 @@ def create_objective(
             match = re.search(regex, output.stdout)
             job_id = int(match.group(1))
 
-            logger.info(f'SLURM job {job_id} submitted with trial ID: {trial_id}')
-            logger.info(f'Paramters: {trial_params}')
+            slurm_logger.info(f'SLURM job {job_id} submitted with trial ID: {trial_id}')
+            slurm_logger.info(f'Paramters: {trial_params}')
         except subprocess.CalledProcessError:
-            logger.error('Error submitting SLURM job')
+            slurm_logger.error('Error submitting SLURM job')
             raise
 
         while not os.path.isfile(results_path):
@@ -102,16 +107,24 @@ def create_objective(
                 row_data = step_data.iloc[0]
                 intermediate_value = loss(row_data, trial.params)
 
-                trial.report(intermediate_value, current_step)
+                # Determine whether the designated pruners say that we should prune based off of intermediate values
+                trial.report(intermediate_value, current_step if not log_trial_id_with_intermediate else trial_id)
                 if trial.should_prune():
                     cancel_command = f'scancel {job_id}'
                     try:
+                        # Cancel the slurm job associated with that task
                         subprocess.run(cancel_command, shell=True, check=True)
-                        logger.info(f'SLURM job {job_id} cancelled due to pruning')
-                        raise optuna.TrialPruned()
+                        slurm_logger.info(f'SLURM job {job_id} cancelled due to pruning')
                     except subprocess.CalledProcessError:
-                        logger.error('Error cancelling SLURM job')
-                        raise
+                        slurm_logger.error('Error cancelling SLURM job, resources have to be release manually')
+                    finally:
+                        if return_average_on_prune:
+                            # Return average intermediate values (useful for Wilcoxon signed rank test)
+                            losses = step_data.apply(lambda row: loss(row, trial.params), axis=1)
+                            return losses.mean()
+                        else:
+                            # Completely abort the trial
+                            raise optuna.TrialPruned()
 
                 current_step += 1
 

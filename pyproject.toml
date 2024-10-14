@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "hyperparameter-tuner"
+name = "slurm-tuner"
 version = "0.1.0"
 description = ""
 authors = ["C4 Patino <c4patino@gmail.com>"]
