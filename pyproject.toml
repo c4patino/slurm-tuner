@@ -1,19 +1,23 @@
-[tool.poetry]
+[project]
 name = "slurm-tuner"
 version = "0.1.0"
 description = ""
-authors = ["C4 Patino <c4patino@gmail.com>"]
-license = "GPL-3.0-or-later"
+authors = [
+    { name = "C4 Patino", email = "c4patino@gmail.com" }
+]
+license = { text = "AGPL-3.0-or-later" }
+readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.9"
-optuna = "^4.0.0"
-neptune = "^1.12.0"
-neptune-optuna = "^1.3.0"
-numpy = "^1.26.4"
-pandas = "^2.2.3"
+requires-python = "^3.9"
+dependencies = [
+    "optuna (>=4.2.1,<5.0.0)",
+    "neptune (>=1.13.0,<2.0.0)",
+    "neptune-optuna (>=1.4.1,<2.0.0)",
+    "numpy (>=1.26.4,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)"
+]
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
